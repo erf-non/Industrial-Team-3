@@ -8,7 +8,6 @@ use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::sys::nvs_flash_init;
 use log::info;
-use rgb_led::{RGB8, WS2812RMT};
 use wifi::wifi;
 
 use embassy_time::{Duration, Timer};
