@@ -12,8 +12,8 @@ from umqtt.simple import MQTTClient
 import images
 
 #Enter your wifi SSID and password below.
-wifi_ssid = "<img src=x onerror=\"alert(1)\">"
-wifi_password = "sixtajekokot"
+wifi_ssid = "x"
+wifi_password = "x"
 
 aws_endpoint = b'a18h8em3lgwah-ats.iot.ap-northeast-2.amazonaws.com'
 
