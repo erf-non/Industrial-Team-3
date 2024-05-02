@@ -1,0 +1,4 @@
+[basket-rs]
+wifi_ssid = ""
+wifi_psk = ""
+aws_endpoint = "a18h8em3lgwah-ats.iot.ap-northeast-2.amazonaws.com"
