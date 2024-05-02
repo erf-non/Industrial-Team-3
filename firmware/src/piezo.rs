@@ -1,12 +1,11 @@
 use embedded_hal::pwm::SetDutyCycle;
-use esp_idf_hal::gpio::{InputPin, OutputPin};
+use esp_idf_hal::gpio::OutputPin;
 use esp_idf_hal::ledc::{LedcChannel, LedcDriver, LedcTimer, LedcTimerDriver};
 use esp_idf_hal::ledc::config::TimerConfig;
 use esp_idf_hal::peripheral::Peripheral;
-use esp_idf_hal::prelude::*;
 
 #[repr(u32)]
-#[warn(dead_code)]
+#[allow(dead_code)]
 pub enum Tone {
     C4 = 261, D4 = 293, E4 = 329, F4 = 349, G4 = 392, A4 = 440, B4 = 493,
     C5 = 523, D5 = 587, E5 = 659, F5 = 698, G5 = 783, A5 = 880, B5 = 987

@@ -3,22 +3,11 @@ mod mqtt;
 mod network;
 mod piezo;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::prelude::Peripherals;
-use esp_idf_svc::sys::nvs_flash_init;
-use log::info;
-use wifi::wifi;
+use log::{error, info};
 
-use embassy_time::{Duration, Timer};
-use esp_idf_hal::gpio::{Input, Level, Output, Pin, Pull};
-use esp_idf_hal::i2c::{I2cConfig, I2cDriver};
-use esp_idf_hal::prelude::*;
-use sh1106::{prelude::*, Builder};
-
-use embedded_hal::delay::DelayNs;
-use embedded_hal::pwm::SetDutyCycle;
-use esp_idf_hal::ledc::{LedcDriver, LedcTimerDriver, config::TimerConfig};
 use crate::display::Display;
 use crate::piezo::{Piezo, Tone};
 
@@ -63,23 +52,26 @@ fn main() -> Result<()> {
     info!("Hello, world!");
 
     piezo.sound(Tone::E5, 220, 20);
-    piezo.sound(Tone::B5, 220, 20);
+    piezo.sound(Tone::A5, 220, 20);
     piezo.sound(Tone::E5, 220, 20);
     
     display.text_demo("connecting...");
 
     let app_config = CONFIG;
 
-    // Connect to the Wi-Fi network
-    let _wifi = match wifi(
-        CONFIG.wifi_ssid,
-        CONFIG.wifi_psk,
-        peripherals.modem,
-        sysloop,
-    ) {
-        Ok(inner) => inner,
-        Err(err) => {
-            bail!("Could not connect to Wi-Fi network: {:?}", err)
+    let _wifi = loop {
+        // Connect to the Wi-Fi network
+        match network::wifi_conn(
+            CONFIG.wifi_ssid,
+            CONFIG.wifi_psk,
+            &mut peripherals.modem,
+            sysloop.clone(),
+        ) {
+            Ok(inner) => break inner,
+            Err(err) => {
+                error!("Could not connect to Wi-Fi network: {:?}, trying again...", err);
+                std::thread::sleep(std::time::Duration::from_secs(5));
+            }
         }
     };
 

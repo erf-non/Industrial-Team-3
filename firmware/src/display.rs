@@ -17,7 +17,6 @@ use esp_idf_hal::{
     i2c::{I2c, I2cConfig, I2cDriver},
     peripheral::Peripheral
 };
-use embedded_hal::delay::DelayNs;
 
 pub(crate) struct Display<'a> {
     hardware: GraphicsMode<I2cInterface<I2cDriver<'a>>>,
