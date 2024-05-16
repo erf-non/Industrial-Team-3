@@ -68,30 +68,37 @@ impl<'a> Rfid<'a> {
         buf
     }
 
-    fn read_frame(&mut self) -> Vec<u8> {
-        let mut buffer = Vec::with_capacity(5);
-
+    pub fn read_frame(&mut self) -> Vec<u8> {
+        
+        // Initial vector for header with dummy values
+        let mut buffer = vec![0u8, 0u8, 0u8, 0u8, 0u8];
+        
+        // Waiting loop for packet header
         loop {
-            let n = self.uart.read_exact(&mut buffer[0..1]).unwrap();
+            // Read one byte
+            self.uart.read_exact(&mut buffer[0..1]).unwrap();
+            // Is header read?
             if (buffer[0] == 0xBBu8) {
+                // Read remaining part of header
                 self.uart.read_exact(&mut buffer[1..5]).unwrap();
                 let message_size = u16::from_be_bytes([buffer[3], buffer[4]]) as usize;
+                // TODO: stupid message sizes
 
-                // prepare
+                // Prepare buffer for payload
                 buffer.resize(buffer.len() + message_size + 2, 0);
+                // Load payload
                 self.uart.read_exact(&mut buffer[5..(5 + message_size + 2)]).unwrap();
-                if (buffer[buffer.len() - 1] != 0x7eu8 ||
-                    buffer[buffer.len() - 2] != Self::calc_checksum(&buffer[1..(5 + message_size + 2)])) {
+                
+                // Corrupted frames handling
+                if (buffer[buffer.len() - 1] != 0x7eu8) {
                     // TODO: Handle invalid frame
-                    info!("Frame is invalid! Fuck off!");
+                    info!("Frame nema spravnou koncovku!");
+                }
+                if (buffer[buffer.len() - 2] != Self::calc_checksum(&buffer[1..(buffer.len() - 2)])) {
+                    // TODO: Handle invalid frame
+                    info!("Nesedi checksum! {} vs {}", buffer[buffer.len() - 2], Self::calc_checksum(&buffer[1..(buffer.len() - 2)]));
                 }
                 return buffer;
-                //buffer
-                /*match FromPrimitive::from_u8(buffer[1]) {
-                    Some(FrameType::Response) => {}
-                    Some(FrameType::Notification) => {}
-                    _ => {}
-                }*/
             }
         }
     }
