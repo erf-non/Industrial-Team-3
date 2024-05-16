@@ -2,14 +2,17 @@ mod display;
 mod mqtt;
 mod network;
 mod piezo;
+mod rfid;
 
 use anyhow::Result;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::prelude::Peripherals;
 use log::{error, info};
+use std::io::{Read, Write};
 
 use crate::display::Display;
 use crate::piezo::{Piezo, Tone};
+use crate::rfid::Rfid;
 
 const AWS_CERT: &[u8] = const_str::concat_bytes!(include_bytes!("../cert.pem"), 0u8);
 const AWS_PRIVKEY: &[u8] = const_str::concat_bytes!(include_bytes!("../privkey.pem"), 0u8);
@@ -49,12 +52,29 @@ fn main() -> Result<()> {
     let mut piezo = 
         Piezo::init(peripherals.pins.gpio21, peripherals.ledc.timer0, peripherals.ledc.channel0);
 
+    // hardware uart1 bus, uart0 used for usb
+    let mut rfid =
+        Rfid::init(peripherals.uart1, peripherals.pins.gpio10, peripherals.pins.gpio9);
+    
     info!("Hello, world!");
+    info!("Hello from Windows!");
 
     piezo.sound(Tone::E5, 220, 20);
     piezo.sound(Tone::A5, 220, 20);
     piezo.sound(Tone::E5, 220, 20);
+
+    let mut buffer = [0u8; 10];
+
+    // read up to 10 bytes
+
     
+    
+    loop {
+        let n = rfid.uart.read(&mut buffer[..], 1500)?;
+        info!("{:?}", buffer);
+        display.text_demo(&String::from_utf8_lossy(&buffer));
+    }
+
     display.text_demo("connecting...");
 
     let _wifi = loop {
