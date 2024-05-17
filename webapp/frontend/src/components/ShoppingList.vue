@@ -1,9 +1,10 @@
 <script setup>
-import { ref, defineProps, toValue, watch, reactive, registerRuntimeCompiler } from 'vue'
+import { ref, defineProps, toValue, watch, reactive } from 'vue'
 
 const search_endpoint = "https://ngc8pq0cs8.execute-api.ap-northeast-2.amazonaws.com/search/products?query=";
 
 const props = defineProps(['items'])
+const emit = defineEmits(['hasChanged'])
 
 let productSelected = ref({});
 let selectOptions = reactive([]);
@@ -27,6 +28,8 @@ let addItem = () => {
     
     props.items.unshift({ id: props.items.length + 1, title: product.name_en,
        product_id: product.product_id, done: false, count: 1 });
+    
+    emit('update:hasChanged', true);
 }
 
 // move completed items at the end of the list
@@ -62,10 +65,12 @@ let onSearch = debounce((search, loading) => {
 
 let increment = (item) => {
   item.count = Math.min(99, item.count + 1);
+  emit('update:hasChanged', true);
 }
 
 let decrement = (item) => {
   item.count = Math.max(0, item.count - 1);
+  emit('update:hasChanged', true);
 }
 
 // https://dev.to/pyrsmk/how-to-use-the-contenteditable-attribute-in-vue-3-a89
@@ -84,6 +89,7 @@ let validateCount = (event) => {
   props.items.forEach(item => {
     if (item.id == event.target.dataset.id) {
       item.count = parseInt(event.target.innerText);
+      emit('update:hasChanged', true);
       return;
     }
   });

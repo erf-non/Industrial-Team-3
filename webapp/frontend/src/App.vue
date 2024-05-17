@@ -1,5 +1,4 @@
 <script setup>
-import { debounce } from 'lodash';
 import { reactive } from 'vue';
 import { watch, ref, onMounted } from 'vue';
 
@@ -18,9 +17,6 @@ let items = reactive([]);
 
 // listen for changes in the items array and log them
 watch(() => items, (newItems, oldItems) => {
-  console.log('items changed:', newItems, oldItems);
-  hasChanged.value = true;
-
   // items with count 0, remove them from the list
   items.forEach((item, index) => {
     if (item.count === 0) {
@@ -65,6 +61,8 @@ onMounted(() => {
     } else if (message.event === 'update_list' && message.success === true) {
       hasChanged.value = false;
     } else if (message.event === 'get_list') {
+      // clear the items array and add the new items
+      items.splice(0, items.length);
       message.items.forEach(item => {
         items.push(item);
       });
@@ -85,7 +83,7 @@ onMounted(() => {
         'action': 'update_list', 'body': {'public_id': listPublicId, 'private_id': listPrivateId, 'items': items}
       }))
     }
-  }, 2000);
+  }, 1000);
 });
 </script>
 
@@ -115,7 +113,7 @@ onMounted(() => {
 <div>
 <Transition>
   <div v-if="wsConnected && listRetrieved" key="list">
-    <ShoppingList :items="items"/>
+    <ShoppingList :items="items" v-model:hasChanged="hasChanged"/>
   </div>
   <div v-else key="loader" class="loader">
     <div class="container">
