@@ -36,12 +36,21 @@ impl<'a> Rfid<'a> {
         Self { uart }
     }
 
+    // calculate checksum -- cumulative sum of all bytes except header, taking the last byte of the sum
     fn calc_checksum(frame: &[u8]) -> u8 {
         frame.iter().fold(0, |sum, byte| sum.wrapping_add(*byte))
     }
-    fn make_frame(command: u8, parameter: &[u8]) -> Vec<u8> {
+
+    fn make_frame(command: u8, parameter: Option<&[u8]>) -> Vec<u8> {
+
+        //Get parameter size
+        let parameter_len = match parameter {
+            Some(n) => n.len(),
+            None => 0,
+        };
+
         // preallocate buffer for size of fixed data + variable length parameter
-        let mut buf: Vec<u8> = Vec::with_capacity(parameter.len() + 8);
+        let mut buf: Vec<u8> = Vec::with_capacity(parameter_len + 8);
 
         // start buffer with header, packet type and command
         buf.push(0xBB);
@@ -49,23 +58,37 @@ impl<'a> Rfid<'a> {
         buf.push(command);
 
         // length is 16 bit at most
-        assert!(parameter.len() <= 0xffff);
+        assert!(parameter_len <= 0xffff);
 
         // transmit length as big endian bytes according to spec
-        let length_be = (parameter.len() as u16).to_be_bytes();
+        let length_be = (parameter_len as u16).to_be_bytes();
         buf.extend_from_slice(&length_be);
 
-        // add parameter to buffer
-        buf.extend_from_slice(parameter);
+        // add parameter (if there is some) to buffer
+        if let Some(data) = parameter {
+            buf.extend_from_slice(data);
+        }
 
-        // calculate checksum -- cumulative sum of all bytes except header, taking the last byte of the sum
-        //let checksum: u8 = buf[1..].iter().fold(0, |sum, byte| sum.wrapping_add(*byte));
+        // calculate checksum
         let checksum = Self::calc_checksum(&buf[1..]);
+
+        // Push checksum and final byte, return finished packet
         buf.push(checksum);
-
         buf.push(0x7e);
-
         buf
+    }
+
+    pub fn frame_scan_data(&mut self) -> Vec<u8> {
+        Self::make_frame(0x22, None)
+    }
+
+    pub fn frame_scan_data_n(&mut self, cnt: u16) -> Vec<u8> {
+        let cnt_bytes = cnt.to_be_bytes();
+        Self::make_frame(0x27, Some(&[0x22u8, cnt_bytes[0], cnt_bytes[1]]))
+    }
+
+    pub fn frame_scan_data_stop(&mut self) -> Vec<u8> {
+        Self::make_frame(0x28, None)
     }
 
     pub fn read_frame(&mut self) -> Vec<u8> {
