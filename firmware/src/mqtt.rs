@@ -30,7 +30,6 @@ impl Mqtt {
 
         mqtt_config.client_id = Some("basket");
 
-
         let mut client =
         EspMqttClient::new_cb(
             &broker_url,
@@ -44,7 +43,6 @@ impl Mqtt {
         client.subscribe("test", QoS::AtMostOnce)?;
         info!("MQTT subscribed!");
 
-        // 2. publish an empty hello message
         let payload: &[u8] = &[];
         client.publish("hello", QoS::AtMostOnce, true, payload)?;
 
