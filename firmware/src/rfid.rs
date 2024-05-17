@@ -91,49 +91,71 @@ impl<'a> Rfid<'a> {
         Self::make_frame(0x28, None)
     }
 
-    pub fn read_frame(&mut self) -> Vec<u8> {
+    pub fn read_frame(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
+        if (self.uart.remaining_read()? < 1) {
+            return Ok(None);
+        }
         
         // Initial vector for header with dummy values
         let mut buffer = vec![0u8, 0u8, 0u8, 0u8, 0u8];
         
-        // Waiting loop for packet header
-        loop {
-            // Read one byte
-            self.uart.read_exact(&mut buffer[0..1]).unwrap();
-            // Is header read?
-            if (buffer[0] == 0xBBu8) {
-                // Read remaining part of header
-                self.uart.read_exact(&mut buffer[1..5]).unwrap();
-                let message_size = u16::from_be_bytes([buffer[3], buffer[4]]) as usize;
-                // TODO: stupid message sizes
+        // Read one byte
+        self.uart.read_exact(&mut buffer[0..1])?;
+        // Is header read?
+        if (buffer[0] == 0xBBu8) {
+            // Read remaining part of header
+            self.uart.read_exact(&mut buffer[1..5])?;
+            let message_size = u16::from_be_bytes([buffer[3], buffer[4]]) as usize;
+            // TODO: stupid message sizes
 
-                // Prepare buffer for payload
-                buffer.resize(buffer.len() + message_size + 2, 0);
-                // Load payload
-                self.uart.read_exact(&mut buffer[5..(5 + message_size + 2)]).unwrap();
-                
-                // Corrupted frames handling
-                if (buffer[buffer.len() - 1] != 0x7eu8) {
-                    // TODO: Handle invalid frame
-                    info!("Frame nema spravnou koncovku!");
-                }
-                if (buffer[buffer.len() - 2] != Self::calc_checksum(&buffer[1..(buffer.len() - 2)])) {
-                    // TODO: Handle invalid frame
-                    info!("Nesedi checksum! {} vs {}", buffer[buffer.len() - 2], Self::calc_checksum(&buffer[1..(buffer.len() - 2)]));
-                }
-                return buffer;
+            // Prepare buffer for payload
+            buffer.resize(buffer.len() + message_size + 2, 0);
+            // Load payload
+            self.uart.read_exact(&mut buffer[5..(5 + message_size + 2)])?;
+            
+            // Corrupted frames handling
+            if (buffer[buffer.len() - 1] != 0x7eu8) {
+                // TODO: Handle invalid frame
+                info!("Frame nema spravnou koncovku!");
             }
+            if (buffer[buffer.len() - 2] != Self::calc_checksum(&buffer[1..(buffer.len() - 2)])) {
+                // TODO: Handle invalid frame
+                info!("Nesedi checksum! {} vs {}", buffer[buffer.len() - 2], Self::calc_checksum(&buffer[1..(buffer.len() - 2)]));
+            }
+            return Ok(Some(buffer));
+        } else {
+            Ok(None)
         }
     }
 
-    /*fn parse_frame(frame: Vec<u8>) -> Vec<u8> {
-        // TODO: user friendly error handling
+    pub fn parse_frame(&mut self, frame: Vec<u8>) {
+
         assert_eq!(frame[0], 0xbbu8);
-        assert!(frame[1] == FrameType::Response as u8 || frame[1] == FrameType::Notification as u8);
+        if (frame[1] == FrameType::Response as u8) {
 
-    }*/
+        } else if (frame[1] == FrameType::Notification as u8) {
+            match frame[2] {
+                0x22u8 => {
+                    let payload_size = u16::from_be_bytes([frame[3], frame[4]]) as usize;
+                    assert!(payload_size > 6); //return chyba
+                    let rssi = frame[5];
+                    let pc = u16::from_be_bytes([frame[6], frame[7]]) as usize;
+                    let tag = &frame[8..(payload_size + 4)];
+                    let crc = u16::from_be_bytes([frame[payload_size + 4], frame[payload_size + 5]]) as usize;
+                    info!("rssi\t{:?}", rssi);
+                    info!("pc\t{:?}", pc);
+                    info!("tag\t{:?}", tag);
+                    info!("crc\t{:?}", crc);
+                },
+                _ => {
+                    info!("jedjda");
+                },
+            }
+        } else {
+            // TODO: Corrupted frame
+        }
 
-    fn send_data(&mut self, frame: Vec<u8>) {
 
     }
+
 }
