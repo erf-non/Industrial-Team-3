@@ -8,12 +8,15 @@ use anyhow::Result;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::prelude::Peripherals;
 use log::{error, info};
-use std::io::{Read, Write};
+//use std::io::{Read, Write};
+use std::thread;
+use std::time::Duration;
+use esp_idf_hal::io::Read;
+use esp_idf_hal::sys::sleep;
 
 use crate::display::Display;
 use crate::piezo::{Piezo, Tone};
 use crate::rfid::Rfid;
-
 const AWS_CERT: &[u8] = const_str::concat_bytes!(include_bytes!("../cert.pem"), 0u8);
 const AWS_PRIVKEY: &[u8] = const_str::concat_bytes!(include_bytes!("../privkey.pem"), 0u8);
 const AWS_ROOT1: &[u8] = const_str::concat_bytes!(include_bytes!("../aws_root1.pem"), 0u8);
@@ -39,6 +42,7 @@ pub struct Config {
 /// network.
 fn main() -> Result<()> {
     esp_idf_svc::sys::link_patches();   
+   
     esp_idf_svc::log::EspLogger::initialize_default();
     unsafe { esp_idf_svc::sys::nvs_flash_init() };
 
@@ -62,19 +66,76 @@ fn main() -> Result<()> {
     piezo.sound(Tone::E5, 220, 20);
     piezo.sound(Tone::A5, 220, 20);
     piezo.sound(Tone::E5, 220, 20);
-
+    piezo.sound(Tone::B5, 220, 20);
+    piezo.sound(Tone::B5, 220, 20);
+    
     let mut buffer = [0u8; 10];
 
+    
+    
     // read up to 10 bytes
+    //rfid.uart.write(b"lulba").unwrap();
+    //loop {
+    //    rfid.uart.write(&[0xF0, 0x9F, 0xA5, 0xBA]).unwrap();
+    //    rfid.uart.write(&[0xbb, 0xbb]).unwrap();
+    //    thread::sleep(Duration::from_millis(200));
+    //}
+    //info!("{:x?}", rfid.frame_scan_data());
+    //info!("{:x?}", rfid.frame_scan_data_n(10000));
+    //info!("{:x?}", rfid.frame_scan_data_stop());
+    //rfid.uart.write(&[0xbbu8, 0xbbu8, 0xbbu8, 0xbbu8, 0xbbu8, 0xbbu8, 0xbbu8]).unwrap();
+    rfid.uart.write(&[0xbbu8, 0x00u8, 0xb7u8, 0x00u8, 0x00u8, 0xb7u8, 0x7eu8]).unwrap();
+    //info!("{:?}", rfid.read_frame());
+    rfid.uart.write(&[0xbbu8, 0x00u8, 0xb6u8, 0x00u8, 0x02u8, 0x09u8, 0xc4u8, 0x85u8, 0x7eu8]).unwrap();
+    //info!("{:?}", rfid.read_frame());
+    rfid.uart.write(&[0xbbu8, 0x00u8, 0x0Bu8, 0x00u8, 0x00u8, 0x0Bu8, 0x7Eu8]).unwrap();
+    //rfid.uart.write(&[0xbbu8, 0xbbu8, 0xbbu8, 0xbbu8, 0xbbu8, 0xbbu8, 0xbbu8]).unwrap();
+    //info!("{:?}", rfid.read_frame());
 
-    
-    
     loop {
-        let n = rfid.uart.read(&mut buffer[..], 1500)?;
-        info!("{:?}", buffer);
-        display.text_demo(&String::from_utf8_lossy(&buffer));
+        // read from uart
+        break;
     }
 
+    //let abc = rfid.frame_scan_data_n(1000);
+   // rfid.uart.write(&abc).unwrap();
+    
+    loop {
+        let abc = rfid.frame_scan_data_n(8);
+        rfid.uart.write(&abc).unwrap();
+        for i in 1..4096 {
+            //thread::sleep(Duration::from_millis(20));
+            //piezo.sound(Tone::B5, 100, 20);
+            //piezo.sound(Tone::B5, 100, 1000);
+            match rfid.read_frame() {
+                Ok(Some(n)) => {
+                    //info!("{:2X?}", n);
+                    rfid.parse_frame(n);
+                },
+                Ok(None) => {}
+                Err(n) => {
+                    info!("{}", n);
+                }
+            };            
+        }
+        rfid.kíll_cycle_ttl();
+        thread::sleep(Duration::from_millis(200));
+
+        //info!("{:?}", rfid.read_frame());
+    }    
+    
+    loop {
+        let n = rfid.uart.read_exact(&mut buffer[0..1])?;   
+        if (buffer[0] == 0xff) {
+            info!("Hura! je to {}", buffer[0]);
+            break;
+        } else {
+            info!("Bida: {}", buffer[0]);
+        }
+    }
+    info!("{:?}", rfid.read_frame());
+
+    
     display.text_demo("connecting...");
 
     let _wifi = loop {
