@@ -2,7 +2,8 @@ use std::ffi::CStr;
 
 use crate::{AWS_CERT, AWS_PRIVKEY, CONFIG, AWS_ROOT1};
 
-use esp_idf_svc::mqtt::client::{EspMqttClient, MessageId, MqttClientConfiguration, QoS};
+use esp_idf_svc::mqtt::client::{EspMqttClient, EventPayload, MessageId, MqttClientConfiguration, QoS};
+use esp_idf_svc::mqtt::client::EventPayload::Received;
 use esp_idf_svc::tls::X509;
 use log::info;
 
@@ -34,13 +35,21 @@ impl Mqtt {
         EspMqttClient::new_cb(
             &broker_url,
             &mqtt_config,
-            move |message_event| match message_event {
+            move |message_event| match message_event.payload() {
+                EventPayload::Received {topic: Some(topic), data, ..} => {
+                    match String::from(topic).split("/").last() { 
+                        Some("basket_total") => {
+                            info!("Cena je: {:?}", i32::from_be_bytes(data.try_into().unwrap_or([0; 4])));
+                        }
+                        _ => {}
+                    }
+                }
                 _ => info!("Received from MQTT: {:?}", message_event.payload()),
             },
         )?;
     
         //info!("MQTT connected!");
-        //client.subscribe("test", QoS::AtMostOncedevice_id: ())?;
+        client.subscribe(format!("basket/client/{}/basket_total", CONFIG.device_id).as_str(), QoS::AtMostOnce)?;
         //info!("MQTT subscribed!");
 
         //let payload: &[u8] = &[];

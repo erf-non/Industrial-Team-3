@@ -16,8 +16,6 @@ use crate::mqtt;
 
 pub(crate) struct Rfid<'a> {
     pub uart: uart::UartDriver<'a>,
-    //hashmap: HashMap<String, (bool, u16)>,
-    //mqtt: mqtt::Mqtt
 }
 
 
@@ -41,8 +39,7 @@ impl<'a> Rfid<'a> {
         let config = uart::config::Config::default().baudrate(Hertz(115_200));
         let mut uart: uart::UartDriver = uart::UartDriver::new(
             uart_bus, tx, rx, Option::<AnyIOPin>::None, Option::<AnyIOPin>::None, &config).unwrap();
-
-        //Self { uart, hashmap: Default::default(), mqtt: mqtt::Mqtt::connect().unwrap() }
+        
         Self { uart }
     }
 
@@ -137,43 +134,5 @@ impl<'a> Rfid<'a> {
             Ok(None)
         }
     }
-
-    /*pub fn kíll_cycle_ttl(&mut self) {
-        self.hashmap.iter_mut().for_each(|(_, (_, ttl))| *ttl = ttl.saturating_sub(1));
-        for (key, (flag, ttl)) in self.hashmap.iter() {
-            if *flag && *ttl == 0u16 {
-                // send mqtt
-                info!("老品》\t{:?}\t{:?}\t{:?}", key, flag, ttl);
-                self.mqtt.send_remove_product(key.as_bytes());
-            }
-        }
-        self.hashmap.retain(|key, (flag, ttl)| *ttl > 0);
-    }*/
-    
-    /*fn epc_magic(&mut self, epc: &[u8]) {
-
         
-        
-        let tag = hex::encode(epc);
-        self.hashmap.entry(tag.clone())
-            .and_modify(|(flag, ttl)| *ttl = min(TAG_TTL_CAP, *ttl + 2))
-            .or_insert((false, TAG_TTL_INIT));
-        
-        //info!("DBG》\t{:?}", self.hashmap[&tag]);
-        for (key, (flag, ttl)) in self.hashmap.iter_mut() {
-            if !*flag && *ttl > TAG_TTL_THRESH {
-                *flag = true;
-                // send mqtt
-                info!("新品》\t{:?}\t{:?}\t{:?}", key, flag, ttl);
-                self.mqtt.send_add_product(epc);
-                
-            }
-            // *ttl -= 1;
-            if *flag && *ttl == 0u16 {
-                // send mqtt
-                info!("老品》\t{:?}\t{:?}\t{:?}", key, flag, ttl);
-            }
-        }
-    }*/
-    
 }

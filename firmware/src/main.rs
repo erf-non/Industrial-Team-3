@@ -16,6 +16,8 @@ use log::{error, info};
 use std::{default, thread};
 //use std::future::join;
 use std::time::Duration;
+use esp_idf_hal::gpio::{Gpio18, Gpio19};
+use esp_idf_hal::i2c::I2C0;
 use esp_idf_hal::io::Read;
 use esp_idf_hal::sys::sleep;
 
@@ -66,8 +68,8 @@ fn main() -> Result<()> {
     let sysloop = EspSystemEventLoop::take()?;
 
     // hardware i2c bus 0, sda pin 19, scl pin 18
-    let mut display =
-        Display::init(peripherals.i2c0, peripherals.pins.gpio19, peripherals.pins.gpio18);
+    //let mut display =
+    //    Display::init(peripherals.i2c0, peripherals.pins.gpio19, peripherals.pins.gpio18);
     
     let mut piezo = 
         Piezo::init(peripherals.pins.gpio21, peripherals.ledc.timer0, peripherals.ledc.channel0);
@@ -82,7 +84,7 @@ fn main() -> Result<()> {
     piezo.sound(Tone::B5, 220, 20);
     piezo.sound(Tone::B5, 220, 20);
     
-    display.text_demo("connecting...");
+    //display.text_demo("connecting...");
     let _wifi = loop {
         // Connect to the Wi-Fi network
         match network::wifi_conn(
@@ -100,7 +102,7 @@ fn main() -> Result<()> {
     };
 
     let thread_products = cell.clone();
-    let thread_handle = thread::spawn(move || thread2(thread_products));
+    let thread_handle = thread::Builder::new().stack_size(9216).spawn(move || thread2(thread_products, peripherals.i2c0, peripherals.pins.gpio19, peripherals.pins.gpio18));
 
 
     loop {
@@ -134,46 +136,22 @@ fn main() -> Result<()> {
                 }
             };            
         }
-        //rfid.kíll_cycle_ttl(); // delegovat do jiného threadu
         thread::sleep(Duration::from_millis(200));
+    }
 
-        //info!("{:?}", rfid.read_frame());
-    }
-    display.text_demo("hiiiii :3");
-    loop {
-        let n = rfid.uart.read_exact(&mut buffer[0..1])?;   
-        if (buffer[0] == 0xff) {
-            info!("Hura! je to {}", buffer[0]);
-            break;
-        } else {
-            info!("Bida: {}", buffer[0]);
-        }
-    }
     info!("{:?}", rfid.read_frame());
-    thread_handle.join().expect("Joining secondary thread failed");
-    
+    //thread_handle.join().expect("Joining secondary thread failed");
 
-
-
-    std::thread::sleep(std::time::Duration::from_secs(3));
-    let mqtt = mqtt::Mqtt::connect().unwrap();
-
-    loop {
-        display.veryhappy_anim();
-    }
-
-    loop {
-        // Wait...
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        info!("Hello, world!");
-    }
 }
 
 
 
-pub fn thread2(products: ProductMap) {
+pub fn thread2(products: ProductMap, c0: I2C0, gpio19: Gpio19, gpio18: Gpio18) {
 
+    //let mut peripherals = Peripherals::take().unwrap();
     let mut connection: mqtt::Mqtt = mqtt::Mqtt::connect().unwrap();
+    let mut display =
+        Display::init(c0, gpio19, gpio18);
     // announce news and kills - over MQTT, taky áudelat heartbeat
     // kill the olds
 
@@ -185,6 +163,7 @@ pub fn thread2(products: ProductMap) {
             if !*flag && *ttl > TAG_TTL_THRESH {
                 *flag = true;
                 connection.send_add_product(&key[..]);
+                display.veryhappy_anim();
                 info!("新品》\t{:?}\t{:?}\t{:?}", key, flag, ttl);
             }
 
@@ -197,7 +176,9 @@ pub fn thread2(products: ProductMap) {
         }
 
         products.lock().unwrap().retain(|key, (flag, ttl)| *ttl > 0);
+        //display.veryhappy_anim();
         thread::sleep(Duration::from_millis(250));
+    
     }
 
 }
