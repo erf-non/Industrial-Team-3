@@ -11,11 +11,13 @@ use esp_idf_hal::uart::Uart;
 use log::info;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+use crate::mqtt;
 
 
 pub(crate) struct Rfid<'a> {
     pub uart: uart::UartDriver<'a>,
-    hashmap: HashMap<String, (bool, u16)>
+    //hashmap: HashMap<String, (bool, u16)>,
+    //mqtt: mqtt::Mqtt
 }
 
 
@@ -40,7 +42,8 @@ impl<'a> Rfid<'a> {
         let mut uart: uart::UartDriver = uart::UartDriver::new(
             uart_bus, tx, rx, Option::<AnyIOPin>::None, Option::<AnyIOPin>::None, &config).unwrap();
 
-        Self { uart, hashmap: Default::default() }
+        //Self { uart, hashmap: Default::default(), mqtt: mqtt::Mqtt::connect().unwrap() }
+        Self { uart }
     }
 
     // calculate checksum -- cumulative sum of all bytes except header, taking the last byte of the sum
@@ -135,18 +138,22 @@ impl<'a> Rfid<'a> {
         }
     }
 
-    pub fn kíll_cycle_ttl(&mut self) {
+    /*pub fn kíll_cycle_ttl(&mut self) {
         self.hashmap.iter_mut().for_each(|(_, (_, ttl))| *ttl = ttl.saturating_sub(1));
         for (key, (flag, ttl)) in self.hashmap.iter() {
             if *flag && *ttl == 0u16 {
                 // send mqtt
                 info!("老品》\t{:?}\t{:?}\t{:?}", key, flag, ttl);
+                self.mqtt.send_remove_product(key.as_bytes());
             }
         }
         self.hashmap.retain(|key, (flag, ttl)| *ttl > 0);
-    }
+    }*/
     
-    fn epc_magic(&mut self, epc: &[u8]) {
+    /*fn epc_magic(&mut self, epc: &[u8]) {
+
+        
+        
         let tag = hex::encode(epc);
         self.hashmap.entry(tag.clone())
             .and_modify(|(flag, ttl)| *ttl = min(TAG_TTL_CAP, *ttl + 2))
@@ -158,44 +165,15 @@ impl<'a> Rfid<'a> {
                 *flag = true;
                 // send mqtt
                 info!("新品》\t{:?}\t{:?}\t{:?}", key, flag, ttl);
+                self.mqtt.send_add_product(epc);
+                
             }
-            //*ttl -= 1;
+            // *ttl -= 1;
             if *flag && *ttl == 0u16 {
                 // send mqtt
                 info!("老品》\t{:?}\t{:?}\t{:?}", key, flag, ttl);
             }
         }
-    }
-
-    pub fn parse_frame(&mut self, frame: Vec<u8>) {
-
-        assert_eq!(frame[0], 0xbbu8);
-        if (frame[1] == FrameType::Response as u8) {
-
-        } else if (frame[1] == FrameType::Notification as u8) {
-            match frame[2] {
-                0x22u8 => {
-                    let payload_size = u16::from_be_bytes([frame[3], frame[4]]) as usize;
-                    assert!(payload_size > 6); //return chyba
-                    let rssi = frame[5];
-                    let pc = u16::from_be_bytes([frame[6], frame[7]]) as usize;
-                    let tag = &frame[8..(payload_size + 4)];
-                    let crc = u16::from_be_bytes([frame[payload_size + 4], frame[payload_size + 5]]) as usize;
-                    //info!("rssi\t{:?}", rssi);
-                    //info!("pc\t{:?}", pc);
-                    //info!("tag\t{:?}", tag);
-                    //info!("crc\t{:?}", crc);
-                    self.epc_magic(&frame[6..(payload_size + 4)])
-                },
-                _ => {
-                    info!("jedjda");
-                },
-            }
-        } else {
-            // TODO: Corrupted frame
-        }
-
-
-    }
-
+    }*/
+    
 }

@@ -40,7 +40,7 @@ impl Mqtt {
         )?;
     
         //info!("MQTT connected!");
-        //client.subscribe("test", QoS::AtMostOnce)?;
+        //client.subscribe("test", QoS::AtMostOncedevice_id: ())?;
         //info!("MQTT subscribed!");
 
         //let payload: &[u8] = &[];
@@ -48,12 +48,19 @@ impl Mqtt {
 
         Ok(Self { client })
     }
-    
+
     pub fn send_add_product(&mut self, epc: &[u8]) {
-        let result = self.client.publish("basket/server/add_product", QoS::AtLeastOnce, true, epc);
+        let result = self.client.publish(
+            format!("basket/server/{}/add_product", CONFIG.device_id).as_str(), 
+            QoS::AtLeastOnce, 
+            true, 
+            epc);
     }
 
     pub fn send_remove_product(&mut self, epc: &[u8]) {
-        let result = self.client.publish("basket/server/remove_product", QoS::AtLeastOnce, true, epc);
-    }
+        let result = self.client.publish(
+            format!("basket/server/{}/remove_product", CONFIG.device_id).as_str(),
+            QoS::AtLeastOnce,
+            true,
+            epc);    }
 }
