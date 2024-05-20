@@ -33,9 +33,7 @@ watch(() => items, (newItems, oldItems) => {
 onMounted(() => {
   let reconnectInterval = null;
 
-  //let session_id = window.location.pathname.substring(1);
-
-  let session_id = "BQ1_1Jek";
+  let session_id = window.location.pathname.substring(1);
 
   if (session_id.length > 1) {
     hasBasketSession.value = true;
@@ -148,7 +146,7 @@ onMounted(() => {
     <Transition>
       <div v-if="wsConnected && listRetrieved" key="list">
         <ShoppingList :items="items" v-model:hasChanged="hasChanged" />
-        <BasketContents :basketItems="basketItems" :basketTotal="basketTotal" />
+        <BasketContents v-if="hasBasketSession" :basketItems="basketItems" :basketTotal="basketTotal" />
       </div>
       <div v-else key="loader" class="loader">
         <div class="container">
