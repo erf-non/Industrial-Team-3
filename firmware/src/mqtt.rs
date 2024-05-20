@@ -74,7 +74,7 @@ impl Mqtt {
         )?;
         
         info!("MQTT connected!");
-        self.subscribe(format!("basket/client/{}/+", CONFIG.device_id).as_str(), QoS::AtMostOnce)?;
+        client.subscribe(format!("basket/client/{}/+", CONFIG.device_id).as_str(), QoS::AtMostOnce)?;
         client.publish(format!("basket/server/{}/start_session",
                        CONFIG.device_id).as_str(), QoS::AtMostOnce, false, &[])?;
         info!("MQTT subscribed!");
