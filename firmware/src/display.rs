@@ -7,6 +7,10 @@ use embedded_graphics::{
 
     image::{Image, ImageRawLE},
 };
+use embedded_graphics::image::ImageRaw;
+use embedded_graphics::mono_font::mapping::StrGlyphMapping;
+use embedded_graphics::mono_font::{DecorationDimensions, MonoFont};
+use embedded_graphics::mono_font::ascii::{FONT_10X20, FONT_6X9, FONT_7X13, FONT_7X13_BOLD, FONT_9X15_BOLD};
 
 use sh1106::{prelude::*, Builder};
 
@@ -17,6 +21,8 @@ use esp_idf_hal::{
     i2c::{I2c, I2cConfig, I2cDriver},
     peripheral::Peripheral
 };
+use log::info;
+use qrcode_generator::QrCodeEcc;
 
 pub(crate) struct Display<'a> {
     hardware: GraphicsMode<I2cInterface<I2cDriver<'a>>>,
@@ -37,14 +43,62 @@ impl<'a> Display<'a> {
 
         Self { hardware }
     }
-
-    pub fn text_demo(&mut self, text: &str) {
-        // Create a new character style
-        let style = MonoTextStyle::new(&FONT_6X10, BinaryColor::On);
-
-        // Create a text at position (20, 30) and draw it using the previously defined style
-        Text::new(text, Point::new(20, 30), style).draw(&mut self.hardware).unwrap();
+    
+    pub fn display_qr_message(&mut self, qr_url: impl Into<String>,
+                              message1: impl Into<String>, message2: impl Into<String>, message3: impl Into<String>) -> anyhow::Result<()> {
+        let qr_bits =
+            qrcode_generator::to_image(qr_url.into(), QrCodeEcc::Medium, 64)?;
         
+        let mut raw_bits = [0;  (64*64)/8];
+
+        for (i, pixels) in qr_bits.chunks_exact(8).enumerate() {
+            for j in 0..8 {
+                if pixels[j] == 0 {
+                    raw_bits[i] |= 1 << (7 - j);
+                }
+            }
+        }
+        
+        let image: ImageRawLE<BinaryColor> = ImageRaw::new(&raw_bits, 64);
+        Image::new(&image, Point::new(0, 0))
+            .draw(&mut self.hardware)?;
+
+        let style1 = MonoTextStyle::new(&FONT_7X13_BOLD, BinaryColor::On);
+        let style2 = MonoTextStyle::new(&FONT_6X9, BinaryColor::On);
+
+        Text::new(&message1.into(), Point::new(70, 22), style1).draw(&mut self.hardware).unwrap();
+        Text::new(&message2.into(), Point::new(70, 40), style2).draw(&mut self.hardware).unwrap();
+        Text::new(&message3.into(), Point::new(70, 50), style2).draw(&mut self.hardware).unwrap();
+        
+        self.hardware.flush().unwrap();
+
+        Ok(())
+    }
+
+    pub fn text_message(&mut self, text: &str) {
+        // Create a new character style
+        let style = MonoTextStyle::new(&FONT_7X13_BOLD, BinaryColor::On);
+        // Create a text at position (20, 30) and draw it using the previously defined style
+        Text::new(text, Point::new(30, 25), style).draw(&mut self.hardware).unwrap();
+        
+        self.hardware.flush().unwrap();
+    }
+
+    pub fn show_price(&mut self, price: u16) {
+
+        const SEVENT_SEGMENT_FONT: MonoFont = MonoFont {
+            image: ImageRaw::<BinaryColor>::new(include_bytes!("../assets/seven-segment-font.raw"), 224),
+            glyph_mapping: &StrGlyphMapping::new("0123456789", 0),
+            character_size: Size::new(22, 40),
+            character_spacing: 2,
+            baseline: 0,
+            underline: DecorationDimensions::default_underline(40),
+            strikethrough: DecorationDimensions::default_strikethrough(40),
+        };
+        let character_style = MonoTextStyle::new(&SEVENT_SEGMENT_FONT, BinaryColor::On);
+        self.hardware.clear();
+        Text::new(&format!("{:>5}", price), Point::new(5, 12), character_style).draw(&mut self.hardware).unwrap();
+
         self.hardware.flush().unwrap();
     }
 

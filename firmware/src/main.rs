@@ -14,6 +14,8 @@ use esp_idf_svc::hal::prelude::Peripherals;
 use log::{error, info};
 //use std::io::{Read, Write};
 use std::{default, thread};
+use std::rc::Rc;
+use std::sync::mpsc::{channel, RecvTimeoutError, TryRecvError};
 //use std::future::join;
 use std::time::Duration;
 use esp_idf_hal::gpio::{Gpio18, Gpio19};
@@ -22,6 +24,7 @@ use esp_idf_hal::io::Read;
 use esp_idf_hal::sys::sleep;
 
 use crate::display::Display;
+use crate::mqtt::MqttDisplayMessage;
 use crate::piezo::{Piezo, Tone};
 use crate::rfid::{FrameType, Rfid};
 const AWS_CERT: &[u8] = const_str::concat_bytes!(include_bytes!("../cert.pem"), 0u8);
@@ -45,7 +48,9 @@ pub struct Config {
     #[default("")]
     aws_endpoint: &'static str,
     #[default("")]
-    device_id: &'static str
+    device_id: &'static str,
+    #[default("")]
+    web_frontend_url: &'static str
 }
 
 /// Entry point to our application.
@@ -96,7 +101,7 @@ fn main() -> Result<()> {
             Ok(inner) => break inner,
             Err(err) => {
                 error!("Could not connect to Wi-Fi network: {:?}, trying again...", err);
-                std::thread::sleep(std::time::Duration::from_secs(5));
+                std::thread::sleep(std::time::Duration::from_secs(1));
             }
         }
     };
@@ -144,18 +149,36 @@ fn main() -> Result<()> {
 
 }
 
-
-
 pub fn thread2(products: ProductMap, c0: I2C0, gpio19: Gpio19, gpio18: Gpio18) {
 
     //let mut peripherals = Peripherals::take().unwrap();
-    let mut connection: mqtt::Mqtt = mqtt::Mqtt::connect().unwrap();
+    
     let mut display =
         Display::init(c0, gpio19, gpio18);
-    // announce news and kills - over MQTT, taky áudelat heartbeat
-    // kill the olds
+    thread::sleep(Duration::from_secs(5));
+    
+    // display.text_message("Please wait");
+    
+    let (disp_tx, disp_rx) = channel();
+    
+    let mut connection = loop {
+        match mqtt::Mqtt::connect(disp_tx.clone()) {
+            Ok(n) => break n,
+            _ => { info!("Retry MQTT connection"); thread::sleep(Duration::from_secs(1)); }
+        }
+    };
 
-    // Všem odečíst saturating
+    let session_id = loop {
+        match disp_rx.recv_timeout(Duration::from_secs(10)) {
+            Ok(MqttDisplayMessage::Session(s)) => break s,
+            Ok(_) => {},
+            Err(_) => { panic!("Server failed to send session!") }
+        }
+    };
+
+    display.display_qr_message(
+        format!("{}{session_id}", CONFIG.web_frontend_url), "Welcome!", "Scan QR", "to begin").unwrap();
+
     products.lock().unwrap().iter_mut().for_each(|(_, (_, ttl))| *ttl = ttl.saturating_sub(1));
     loop {
         for (key, (flag, ttl)) in products.lock().unwrap().iter_mut() {
@@ -178,7 +201,11 @@ pub fn thread2(products: ProductMap, c0: I2C0, gpio19: Gpio19, gpio18: Gpio18) {
         products.lock().unwrap().retain(|key, (flag, ttl)| *ttl > 0);
         //display.veryhappy_anim();
         thread::sleep(Duration::from_millis(250));
-    
+        match disp_rx.try_recv() {
+            Ok(MqttDisplayMessage::Price(price)) => display.show_price(price),
+            Ok(_) | Err(TryRecvError::Empty) => {},
+            Err(TryRecvError::Disconnected) => panic!("display channel epic fail")
+        }
     }
 
 }
