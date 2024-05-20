@@ -232,6 +232,12 @@ def update_list_handler(body, this_connection_id):
             "statusCode": 403
         }
         
+def get_item_details(product_id):
+    tin = product_id.split("#")[0] 
+    return table.get_item(
+        Key={"PK": "product_" + tin, "SK": "ProductData"}
+    ).get("Item", None)
+        
 def lambda_handler(event, context):
     ctx = event.get("requestContext", {}) 
     print(event.get("requestContext", {}))
@@ -244,6 +250,14 @@ def lambda_handler(event, context):
 
         elif ctx['http']['path'] == '/list/new':
             return new_list_handler()
+        
+        elif ctx['http']['path'] == '/product/details':
+            # validate that query string exists
+            product_id = event.get('queryStringParameters', {}).get('product_id', None)
+            if product_id is None:
+                return {"statusCode": 400}
+            
+            return get_item_details(product_id)
     else:
         print("lambda invoked by ws")
         route_key = event.get("requestContext", {}).get("routeKey")
