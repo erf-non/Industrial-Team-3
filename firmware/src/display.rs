@@ -60,9 +60,9 @@ impl<'a> Display<'a> {
         let style1 = MonoTextStyle::new(&FONT_7X13_BOLD, BinaryColor::On);
         let style2 = MonoTextStyle::new(&FONT_6X9, BinaryColor::On);
 
-        Text::new(&message1.into(), Point::new(70, 22), style1).draw(&mut self.hardware).unwrap();
-        Text::new(&message2.into(), Point::new(70, 40), style2).draw(&mut self.hardware).unwrap();
-        Text::new(&message3.into(), Point::new(70, 50), style2).draw(&mut self.hardware).unwrap();
+        Text::new(&message1.into(), Point::new(68, 22), style1).draw(&mut self.hardware).unwrap();
+        Text::new(&message2.into(), Point::new(68, 40), style2).draw(&mut self.hardware).unwrap();
+        Text::new(&message3.into(), Point::new(68, 50), style2).draw(&mut self.hardware).unwrap();
         
         self.hardware.flush().unwrap();
 

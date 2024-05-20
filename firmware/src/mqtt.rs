@@ -64,13 +64,17 @@ impl Mqtt {
                         }
                         _ => {}
                     }
-                }
+                },
+                EventPayload::Connected(_) => {
+                    info!("Connected to MQTT broker!");
+                    // should subscribe here so it's properly handled during reconnections
+                },
                 _ => info!("Received from MQTT: {:?}", message_event.payload()),
             },
         )?;
         
         info!("MQTT connected!");
-        client.subscribe(format!("basket/client/{}/+", CONFIG.device_id).as_str(), QoS::AtMostOnce)?;
+        self.subscribe(format!("basket/client/{}/+", CONFIG.device_id).as_str(), QoS::AtMostOnce)?;
         client.publish(format!("basket/server/{}/start_session",
                        CONFIG.device_id).as_str(), QoS::AtMostOnce, false, &[])?;
         info!("MQTT subscribed!");
