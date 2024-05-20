@@ -1,39 +1,43 @@
+use std::{
+    cmp::min,
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    sync::mpsc::{channel, TryRecvError},
+    thread,
+    time::Duration,
+};
+
+use esp_idf_hal::{
+    gpio::{Gpio18, Gpio19},
+    i2c::I2C0,
+};
+use esp_idf_svc::{
+    eventloop::EspSystemEventLoop,
+    hal::prelude::Peripherals,
+};
+use log::{error, info};
+
+use crate::{
+    display::Display,
+    mqtt::MqttDisplayMessage,
+    piezo::{Piezo, Tone},
+    rfid::{FrameType, Rfid},
+};
+
 mod display;
 mod mqtt;
 mod network;
 mod piezo;
 mod rfid;
 
-use std::cell::{Cell, OnceCell};
-use std::cmp::min;
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use anyhow::Result;
-use esp_idf_svc::eventloop::EspSystemEventLoop;
-use esp_idf_svc::hal::prelude::Peripherals;
-use log::{error, info};
-//use std::io::{Read, Write};
-use std::{default, thread};
-use std::rc::Rc;
-use std::sync::mpsc::{channel, RecvTimeoutError, TryRecvError};
-//use std::future::join;
-use std::time::Duration;
-use esp_idf_hal::gpio::{Gpio18, Gpio19};
-use esp_idf_hal::i2c::I2C0;
-use esp_idf_hal::io::Read;
-use esp_idf_hal::sys::sleep;
-
-use crate::display::Display;
-use crate::mqtt::MqttDisplayMessage;
-use crate::piezo::{Piezo, Tone};
-use crate::rfid::{FrameType, Rfid};
-const AWS_CERT: &[u8] = const_str::concat_bytes!(include_bytes!("../cert.pem"), 0u8);
-const AWS_PRIVKEY: &[u8] = const_str::concat_bytes!(include_bytes!("../privkey.pem"), 0u8);
-const AWS_ROOT1: &[u8] = const_str::concat_bytes!(include_bytes!("../aws_root1.pem"), 0u8);
 const TAG_TTL_INIT: u16 = 5;
 const TAG_TTL_THRESH: u16 = 15;
 const TAG_TTL_CAP: u16 = 20;
 const TAG_TTL_END: u16 = 0;
+
+const AWS_CERT: &[u8] = const_str::concat_bytes!(include_bytes!("../cert.pem"), 0u8);
+const AWS_PRIVKEY: &[u8] = const_str::concat_bytes!(include_bytes!("../privkey.pem"), 0u8);
+const AWS_ROOT1: &[u8] = const_str::concat_bytes!(include_bytes!("../aws_root1.pem"), 0u8);
 
 type ProductMap = Arc<Mutex<HashMap<Vec<u8>, (bool, u16)>>>;
 
@@ -60,21 +64,16 @@ pub struct Config {
 ///
 /// If the LED goes solid red, then it was unable to connect to your Wi-Fi
 /// network.
-fn main() -> Result<()> {
+fn main() {
     esp_idf_svc::sys::link_patches();   
    
     esp_idf_svc::log::EspLogger::initialize_default();
     unsafe { esp_idf_svc::sys::nvs_flash_init() };
 
     let mut peripherals = Peripherals::take().unwrap();
-    //let mut products: HashMap<[u8], (bool, u16)> = Default::default();
 
     let cell: ProductMap = Default::default();
-    let sysloop = EspSystemEventLoop::take()?;
-
-    // hardware i2c bus 0, sda pin 19, scl pin 18
-    //let mut display =
-    //    Display::init(peripherals.i2c0, peripherals.pins.gpio19, peripherals.pins.gpio18);
+    let sysloop = EspSystemEventLoop::take().unwrap();
     
     let mut piezo = 
         Piezo::init(peripherals.pins.gpio21, peripherals.ledc.timer0, peripherals.ledc.channel0);
@@ -107,26 +106,31 @@ fn main() -> Result<()> {
     };
 
     let thread_products = cell.clone();
-    let thread_handle = thread::Builder::new().stack_size(9216).spawn(move || thread2(thread_products, peripherals.i2c0, peripherals.pins.gpio19, peripherals.pins.gpio18));
+    let thread_handle = thread::Builder::new().stack_size(9216).spawn(move || mqtt_display_thread(thread_products, peripherals.i2c0, peripherals.pins.gpio19, peripherals.pins.gpio18));
 
+    rfid_loop(cell, &mut rfid);
 
+    thread_handle.unwrap().join().expect("Joining secondary thread failed");
+}
+
+fn rfid_loop(cell: ProductMap, rfid: &mut Rfid) {
     loop {
         let frame = rfid.frame_scan_data_n(8);
         rfid.uart.write(&frame).unwrap();
-        for i in 1..4096 {
+        for _i in 1..4096 {
             match rfid.read_frame() {
                 Ok(Some(frame)) => {
                     assert_eq!(frame[0], 0xbbu8);
-                    if (frame[1] == FrameType::Response as u8) {
+                    if frame[1] == FrameType::Response as u8 {
                         // Handling errors etc...
-                    } else if (frame[1] == FrameType::Notification as u8) {
+                    } else if frame[1] == FrameType::Notification as u8 {
                         match frame[2] {
                             0x22u8 => {
                                 let payload_size = u16::from_be_bytes([frame[3], frame[4]]) as usize;
                                 let epc = Vec::from(&frame[6..(payload_size + 4)]);
 
                                 cell.lock().unwrap().entry(epc)
-                                    .and_modify(|(flag, ttl)| *ttl = min(TAG_TTL_CAP, *ttl + 2))
+                                    .and_modify(|(_flag, ttl)| *ttl = min(TAG_TTL_CAP, *ttl + 2))
                                     .or_insert((false, TAG_TTL_INIT));
                             },
                             _ => {
@@ -139,20 +143,13 @@ fn main() -> Result<()> {
                 Err(n) => {
                     info!("{}", n);
                 }
-            };            
+            };
         }
         thread::sleep(Duration::from_millis(200));
     }
-
-    info!("{:?}", rfid.read_frame());
-    //thread_handle.join().expect("Joining secondary thread failed");
-
 }
 
-pub fn thread2(products: ProductMap, c0: I2C0, gpio19: Gpio19, gpio18: Gpio18) {
-
-    //let mut peripherals = Peripherals::take().unwrap();
-    
+pub fn mqtt_display_thread(products: ProductMap, c0: I2C0, gpio19: Gpio19, gpio18: Gpio18) {
     let mut display =
         Display::init(c0, gpio19, gpio18);
     thread::sleep(Duration::from_secs(5));
@@ -198,7 +195,7 @@ pub fn thread2(products: ProductMap, c0: I2C0, gpio19: Gpio19, gpio18: Gpio18) {
             }
         }
 
-        products.lock().unwrap().retain(|key, (flag, ttl)| *ttl > 0);
+        products.lock().unwrap().retain(|_key, (_flag, ttl)| *ttl > 0);
         //display.veryhappy_anim();
         thread::sleep(Duration::from_millis(250));
         match disp_rx.try_recv() {
@@ -207,5 +204,4 @@ pub fn thread2(products: ProductMap, c0: I2C0, gpio19: Gpio19, gpio18: Gpio18) {
             Err(TryRecvError::Disconnected) => panic!("display channel epic fail")
         }
     }
-
 }

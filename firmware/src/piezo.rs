@@ -1,8 +1,10 @@
 use embedded_hal::pwm::SetDutyCycle;
-use esp_idf_hal::gpio::OutputPin;
-use esp_idf_hal::ledc::{LedcChannel, LedcDriver, LedcTimer, LedcTimerDriver};
-use esp_idf_hal::ledc::config::TimerConfig;
-use esp_idf_hal::peripheral::Peripheral;
+use esp_idf_hal::{
+    gpio::OutputPin,
+    ledc::{LedcChannel, LedcDriver, LedcTimer, LedcTimerDriver, config::TimerConfig},
+    peripheral::Peripheral,
+};
+
 
 #[repr(u32)]
 #[allow(dead_code)]
@@ -23,7 +25,7 @@ impl<'a> Piezo<'a> {
         channel: impl Peripheral<P = impl LedcChannel> + 'a,
     ) -> Self {
         let config =  TimerConfig::default();
-        let mut timer = LedcTimerDriver::new(timer, &config).unwrap();
+        let timer = LedcTimerDriver::new(timer, &config).unwrap();
         let mut driver = LedcDriver::new(channel, &timer, pin).unwrap();
 
         driver.set_duty_cycle_percent(0).unwrap();
@@ -34,8 +36,8 @@ impl<'a> Piezo<'a> {
     pub fn sound(&mut self, tone: Tone, length: u16, delay: u16) {
         self.driver.set_duty_cycle_percent(50).unwrap();
         self.timer.set_frequency((tone as u32).into()).unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(length.try_into().unwrap()));
+        std::thread::sleep(std::time::Duration::from_millis(length.into()));
         self.driver.set_duty_cycle_percent(0).unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(delay.try_into().unwrap()));
+        std::thread::sleep(std::time::Duration::from_millis(delay.into()));
     }
 }

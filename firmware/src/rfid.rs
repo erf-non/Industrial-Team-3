@@ -1,23 +1,16 @@
-use std::cmp::{max, min};
-use std::collections::HashMap;
-use std::fmt::Write;
-use std::mem::size_of;
-use esp_idf_hal::gpio::{AnyIOPin, InputPin, OutputPin};
-use esp_idf_hal::io::Read;
-use esp_idf_hal::peripheral::Peripheral;
-use esp_idf_hal::prelude::*;
-use esp_idf_hal::uart;
-use esp_idf_hal::uart::Uart;
+use esp_idf_hal::{
+    gpio::{AnyIOPin, InputPin, OutputPin},
+    io::Read,
+    peripheral::Peripheral,
+    prelude::*,
+    uart::{self, Uart},
+};
 use log::info;
 use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
-use crate::mqtt;
-
 
 pub(crate) struct Rfid<'a> {
     pub uart: uart::UartDriver<'a>,
 }
-
 
 #[derive(FromPrimitive)]
 #[repr(u8)]
@@ -26,10 +19,6 @@ pub enum FrameType {
     Command = 0x00, Response = 0x01, Notification = 0x02
 }
 
-const TAG_TTL_INIT: u16 = 5;
-const TAG_TTL_THRESH: u16 = 15;
-const TAG_TTL_CAP: u16 = 20;
-
 impl<'a> Rfid<'a> {
     pub fn init(
         uart_bus: impl Peripheral<P = impl Uart> + 'a,
@@ -37,7 +26,7 @@ impl<'a> Rfid<'a> {
         rx: impl Peripheral<P = impl InputPin> + 'a,
     ) -> Self {
         let config = uart::config::Config::default().baudrate(Hertz(115_200));
-        let mut uart: uart::UartDriver = uart::UartDriver::new(
+        let uart: uart::UartDriver = uart::UartDriver::new(
             uart_bus, tx, rx, Option::<AnyIOPin>::None, Option::<AnyIOPin>::None, &config).unwrap();
         
         Self { uart }
@@ -99,7 +88,7 @@ impl<'a> Rfid<'a> {
     }
 
     pub fn read_frame(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
-        if (self.uart.remaining_read()? < 1) {
+        if self.uart.remaining_read()? < 1 {
             return Ok(None);
         }
         
@@ -109,7 +98,7 @@ impl<'a> Rfid<'a> {
         // Read one byte
         self.uart.read_exact(&mut buffer[0..1])?;
         // Is header read?
-        if (buffer[0] == 0xBBu8) {
+        if buffer[0] == 0xBBu8 {
             // Read remaining part of header
             self.uart.read_exact(&mut buffer[1..5])?;
             let message_size = u16::from_be_bytes([buffer[3], buffer[4]]) as usize;
@@ -121,15 +110,15 @@ impl<'a> Rfid<'a> {
             self.uart.read_exact(&mut buffer[5..(5 + message_size + 2)])?;
             
             // Corrupted frames handling
-            if (buffer[buffer.len() - 1] != 0x7eu8) {
+            if buffer[buffer.len() - 1] != 0x7eu8 {
                 // TODO: Handle invalid frame
                 info!("Frame nema spravnou koncovku!");
             }
-            if (buffer[buffer.len() - 2] != Self::calc_checksum(&buffer[1..(buffer.len() - 2)])) {
+            if buffer[buffer.len() - 2] != Self::calc_checksum(&buffer[1..(buffer.len() - 2)]) {
                 // TODO: Handle invalid frame
                 info!("Nesedi checksum! {} vs {}", buffer[buffer.len() - 2], Self::calc_checksum(&buffer[1..(buffer.len() - 2)]));
             }
-            return Ok(Some(buffer));
+            Ok(Some(buffer))
         } else {
             Ok(None)
         }

@@ -1,28 +1,22 @@
 use embedded_graphics::{
-    prelude::*,
+    image::{Image, ImageRaw, ImageRawLE},
+    mono_font::{
+        ascii::{FONT_6X9, FONT_7X13_BOLD},
+        DecorationDimensions, MonoFont, MonoTextStyle, mapping::StrGlyphMapping,
+    },
     pixelcolor::BinaryColor,
-
-    mono_font::{ascii::FONT_6X10, MonoTextStyle},
-    text::Text,
-
-    image::{Image, ImageRawLE},
-};
-use embedded_graphics::image::ImageRaw;
-use embedded_graphics::mono_font::mapping::StrGlyphMapping;
-use embedded_graphics::mono_font::{DecorationDimensions, MonoFont};
-use embedded_graphics::mono_font::ascii::{FONT_10X20, FONT_6X9, FONT_7X13, FONT_7X13_BOLD, FONT_9X15_BOLD};
-
-use sh1106::{prelude::*, Builder};
-
-use esp_idf_hal::{
     prelude::*,
-
+    text::Text,
+};
+use esp_idf_hal::{
     gpio::{InputPin, OutputPin},
     i2c::{I2c, I2cConfig, I2cDriver},
-    peripheral::Peripheral
+    peripheral::Peripheral,
+    prelude::*,
 };
-use log::info;
 use qrcode_generator::QrCodeEcc;
+use sh1106::{Builder, prelude::*};
+
 
 pub(crate) struct Display<'a> {
     hardware: GraphicsMode<I2cInterface<I2cDriver<'a>>>,
@@ -108,7 +102,7 @@ impl<'a> Display<'a> {
     }
 
     fn show_anim(&mut self, frames: &[u8]) {
-        frames.chunks(1024).into_iter().for_each(|frame| {
+        frames.chunks(1024).for_each(|frame| {
             let image: ImageRawLE<BinaryColor> = ImageRawLE::new(frame, 128);
             Image::new(&image, Point::new(0, 0))
                 .draw(&mut self.hardware)

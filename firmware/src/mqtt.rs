@@ -1,14 +1,15 @@
-use std::ffi::CStr;
-use std::rc::Rc;
+use std::{
+    ffi::CStr,
+    sync::mpsc::Sender,
+};
 
-use crate::{AWS_CERT, AWS_PRIVKEY, CONFIG, AWS_ROOT1};
-
-use esp_idf_svc::mqtt::client::{EspMqttClient, EventPayload, MessageId, MqttClientConfiguration, QoS};
-use esp_idf_svc::mqtt::client::EventPayload::Received;
-use esp_idf_svc::tls::X509;
-use std::sync::mpsc::{channel, Sender};
+use esp_idf_svc::{
+    mqtt::client::{EspMqttClient, EventPayload, MqttClientConfiguration, QoS},
+    tls::X509,
+};
 use log::info;
-use crate::display::Display;
+
+use crate::{AWS_CERT, AWS_PRIVKEY, AWS_ROOT1, CONFIG};
 use crate::mqtt::MqttDisplayMessage::{Price, Session};
 
 pub struct Mqtt {
@@ -22,7 +23,7 @@ pub enum MqttDisplayMessage {
 }
 
 impl Mqtt {
-    pub fn connect(mut data_display: Sender<MqttDisplayMessage>) -> anyhow::Result<Self> {
+    pub fn connect(data_display: Sender<MqttDisplayMessage>) -> anyhow::Result<Self> {
         // Client configuration:
         let broker_url = format!("mqtts://{}", CONFIG.aws_endpoint);
         info!("Connecting to MQTT broker {broker_url}...");
@@ -33,11 +34,11 @@ impl Mqtt {
         let root = CStr::from_bytes_with_nul(AWS_ROOT1)?;
 
         mqtt_config.client_certificate =
-            Some(X509::pem(&cert));
+            Some(X509::pem(cert));
         mqtt_config.private_key =
-            Some(X509::pem(&key));
+            Some(X509::pem(key));
         mqtt_config.server_certificate =
-            Some(X509::pem(&root));
+            Some(X509::pem(root));
 
         mqtt_config.client_id = Some("basket");
 
@@ -47,7 +48,7 @@ impl Mqtt {
             &mqtt_config,
             move |message_event| match message_event.payload() {
                 EventPayload::Received {topic: Some(topic), data, ..} => {
-                    match String::from(topic).split("/").last() { 
+                    match String::from(topic).split('/').last() { 
                         Some("basket_total") => {
                             let price = i32::from_be_bytes(data.try_into().unwrap_or([0; 4]));
                             info!("Price is: {:?}", price);
@@ -78,7 +79,7 @@ impl Mqtt {
     }
 
     pub fn send_add_product(&mut self, epc: &[u8]) {
-        let result = self.client.publish(
+        let _result = self.client.publish(
             format!("basket/server/{}/add_product", CONFIG.device_id).as_str(), 
             QoS::AtLeastOnce, 
             true, 
@@ -86,7 +87,7 @@ impl Mqtt {
     }
 
     pub fn send_remove_product(&mut self, epc: &[u8]) {
-        let result = self.client.publish(
+        let _result = self.client.publish(
             format!("basket/server/{}/remove_product", CONFIG.device_id).as_str(),
             QoS::AtLeastOnce,
             true,
