@@ -2,8 +2,7 @@
 import { reactive } from 'vue';
 import { watch, ref, onMounted } from 'vue';
 
-const wsEndpoint = "wss://917jdxtwp1.execute-api.ap-northeast-2.amazonaws.com/production?sess=b45887be0ba31546";
-
+const wsEndpoint = "wss://917jdxtwp1.execute-api.ap-northeast-2.amazonaws.com/production?sess=";
 
 let listPublicId = '430739fc79708a49';
 let listPrivateId = '0957bb8e39fd562baa48243fbff95282';
@@ -12,8 +11,12 @@ let wsConnection = null;
 let wsConnected = ref(false);
 let listRetrieved = ref(false);
 let hasChanged = ref(false);
+let hasBasketSession = ref(false);
+let basketTotal = ref(0);
 
 let items = reactive([]);
+let basketItems = reactive([]);
+let itemsAutoChecked = [];
 
 // listen for changes in the items array and log them
 watch(() => items, (newItems, oldItems) => {
@@ -29,12 +32,25 @@ watch(() => items, (newItems, oldItems) => {
 
 onMounted(() => {
   let reconnectInterval = null;
-  wsConnection = new WebSocket(wsEndpoint);
+
+  //let session_id = window.location.pathname.substring(1);
+
+  let session_id = "BQ1_1Jek";
+
+  if (session_id.length > 1) {
+    hasBasketSession.value = true;
+    history.pushState({}, null, '/');
+  } else {
+    session_id = '';
+  }
+
+  let endpoint = wsEndpoint + session_id;
+  wsConnection = new WebSocket(endpoint);
   wsConnection.onopen = () => {
     console.log('connected');
     wsConnected.value = true;
     wsConnection.send(JSON.stringify({
-      'action': 'get_list', 'body': {'public_id': listPublicId}
+      'action': 'get_list', 'body': { 'public_id': listPublicId }
     }));
   };
   wsConnection.onclose = () => {
@@ -55,9 +71,22 @@ onMounted(() => {
   wsConnection.onmessage = (event) => {
     console.log('message received:', event.data);
     const message = JSON.parse(event.data);
-    if (message.event === 'add_product') {
-      const productId = message.product_id;
-      items.forEach(item => { if (item.product_id === productId) { item.done = true; } });
+    if (message.event === 'basket_update') {
+      basketItems.splice(0, basketItems.length);
+      message.products.forEach(item => {
+        basketItems.push(item);
+        let tid = item.split('#')[0];
+
+        // mark item in shopping list as done if it was added to the basket
+        items.forEach(item => {
+          if (item.product_id === tid) {
+            item.done = true;
+            itemsAutoChecked.push(item);
+          }
+        });
+      });
+
+      basketTotal.value = message.total;
     } else if (message.event === 'update_list' && message.success === true) {
       hasChanged.value = false;
     } else if (message.event === 'get_list') {
@@ -80,7 +109,7 @@ onMounted(() => {
       }
 
       wsConnection.send(JSON.stringify({
-        'action': 'update_list', 'body': {'public_id': listPublicId, 'private_id': listPrivateId, 'items': items}
+        'action': 'update_list', 'body': { 'public_id': listPublicId, 'private_id': listPrivateId, 'items': items }
       }))
     }
   }, 1000);
@@ -88,43 +117,49 @@ onMounted(() => {
 </script>
 
 <template>
-<BNavbar toggleable="lg" v-b-color-mode="'light'" class="pt-0">
-  <div class="container d-flex py-3" >
-    <div class="d-flex">
-        <BNavbarBrand href="#">Basket</BNavbarBrand>
-        <BNavbarToggle target="nav-collapse"/>
-    </div>
-  <BCollapse id="nav-collapse" is-nav>
-    <!-- Right aligned nav items -->
-    <BNavbarNav class="ms-auto mb-2 mb-lg-0">
-      <BNavItem v-show="wsConnected"><span class="badge rounded-pill text-bg-success connected">Connected</span></BNavItem>
+  <BNavbar toggleable="lg" v-b-color-mode="'light'" class="pt-0">
+    <div class="container d-flex py-3">
+      <div class="d-flex w-100">
+        <BNavbarBrand href="#">Smart Basket</BNavbarBrand>
+        <BNavbarNav class="ms-auto ms-auto mb-2 mb-lg-0">
+          <BNavItem v-show="hasBasketSession">
+            <span class="badge rounded-pill text-bg-success connected">
+              Basket Linked
+            </span>
+          </BNavItem>
+        </BNavbarNav>
+        <!-- <BNavbarToggle target="nav-collapse" /> -->
+
+      </div>
       <!--
+      <BCollapse id="nav-collapse" is-nav>
+        <BNavbarNav class="ms-auto mb-2 mb-lg-0">
       <BNavItem href="#">Link</BNavItem>
       <BNavItemDropdown text="Lang" right>
         <BDropdownItem href="#">EN</BDropdownItem>
         <BDropdownItem href="#">ZH</BDropdownItem>
       </BNavItemDropdown>
-  -->
-
-    </BNavbarNav>
-  </BCollapse>  
-  </div>
-</BNavbar>
-<div>
-<Transition>
-  <div v-if="wsConnected && listRetrieved" key="list">
-    <ShoppingList :items="items" v-model:hasChanged="hasChanged"/>
-  </div>
-  <div v-else key="loader" class="loader">
-    <div class="container">
-      <div class="alert alert-danger" v-if="listRetrieved">Connection lost. Please wait...</div>
-      <div class="d-flex justify-content-center" v-else>
-        <BSpinner />
-      </div>
+        </BNavbarNav>
+      </BCollapse>
+    -->
     </div>
+  </BNavbar>
+  <div>
+    <Transition>
+      <div v-if="wsConnected && listRetrieved" key="list">
+        <ShoppingList :items="items" v-model:hasChanged="hasChanged" />
+        <BasketContents :basketItems="basketItems" :basketTotal="basketTotal" />
+      </div>
+      <div v-else key="loader" class="loader">
+        <div class="container">
+          <div class="alert alert-danger" v-if="listRetrieved">Connection lost. Please wait...</div>
+          <div class="d-flex justify-content-center" v-else>
+            <BSpinner />
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
-</Transition>
-</div>
 </template>
 
 <style>
@@ -136,7 +171,7 @@ onMounted(() => {
 
 .v-enter-active,
 .v-leave-active {
-  transition: all 0.4s cubic-bezier(.25,1.01,.32,1);
+  transition: all 0.4s cubic-bezier(.25, 1.01, .32, 1);
 }
 
 .v-enter-from,

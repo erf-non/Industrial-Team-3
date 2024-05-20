@@ -1,7 +1,9 @@
 <script setup>
 import { ref, defineProps, toValue, watch, reactive } from 'vue'
 
-const search_endpoint = "https://ngc8pq0cs8.execute-api.ap-northeast-2.amazonaws.com/search/products?query=";
+const http_endpoint = "https://ngc8pq0cs8.execute-api.ap-northeast-2.amazonaws.com";
+const search_endpoint = `${http_endpoint}/search/products?query=`
+const details_endpoint = `${http_endpoint}/product/details?product_id=`;
 
 const props = defineProps(['items'])
 const emit = defineEmits(['hasChanged'])
@@ -123,23 +125,15 @@ let countKeydown = (event) => {
     return;
   }
 
-  if (!isFinite(event.key))
-    event.target.blur();
+  //if (!isFinite(event.key))
+  //  event.target.blur();
 }
 
 </script>
 
 <template>
   <div class="container">
-    <div class="d-flex">
-      <v-select :filterable="false" :options="selectOptions" @search="onSearch" label="name_en" v-model="productSelected" model="product_id" class="item-select py-3">
-        <template v-slot:no-options>
-          Search and add products...
-        </template>
-      </v-select>
-      <!--<BFormInput v-model="itemText" placeholder="Enter your name" size="lg" class="my-3 flex-shrink-1" /> -->
-      <BButton @click="addItem" class="ms-2 my-3 flex-shrink-0">Add Item</BButton>
-    </div>
+    <h2 class="text-center mb-4">Shopping List</h2>
     <BListGroup>
       <TransitionGroup name="list" tag="div">
         <BListGroupItem class="p-0 ps-4 py-1" v-for="item in items" :key="item.id" :class="{ 'item-done': item.done, 'd-flex': true }">
@@ -164,6 +158,15 @@ let countKeydown = (event) => {
         </BListGroupItem>
       </TransitionGroup>
     </BListGroup>
+    <div class="d-flex">
+      <v-select :filterable="false" :options="selectOptions" @search="onSearch" label="name_en" v-model="productSelected" model="product_id" class="item-select py-3">
+        <template v-slot:no-options>
+          Search and add products...
+        </template>
+      </v-select>
+      <!--<BFormInput v-model="itemText" placeholder="Enter your name" size="lg" class="my-3 flex-shrink-1" /> -->
+      <BButton @click="addItem" class="ms-2 my-3 flex-shrink-0">Add Item</BButton>
+    </div>
   </div>
 </template>
 
