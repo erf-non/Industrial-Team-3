@@ -1,4 +1,6 @@
 [basket-rs]
-wifi_ssid = ""
-wifi_psk = ""
+wifi_ssid = "industrial3"
+wifi_psk = "smartbasket"
 aws_endpoint = "a18h8em3lgwah-ats.iot.ap-northeast-2.amazonaws.com"
+device_id = "basket"
+web_frontend_url = "https://sbskt.sbs/"
