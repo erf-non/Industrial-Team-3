@@ -2,11 +2,12 @@
 import { reactive } from 'vue';
 import { watch, ref, onMounted } from 'vue';
 
-const wsEndpoint = "wss://917jdxtwp1.execute-api.ap-northeast-2.amazonaws.com/production?sess=";
+const wsEndpoint = "wss://917jdxtwp1.execute-api.ap-northeast-2.amazonaws.com/production";
 
 let listPublicId = '430739fc79708a49';
 let listPrivateId = '0957bb8e39fd562baa48243fbff95282';
 let wsConnection = null;
+let wsEndpointSession = wsEndpoint;
 
 let wsConnected = ref(false);
 let listRetrieved = ref(false);
@@ -36,14 +37,16 @@ onMounted(() => {
   let session_id = window.location.pathname.substring(1);
 
   if (session_id.length > 1) {
+    session_id = "?sess=" + session_id;
     hasBasketSession.value = true;
     history.pushState({}, null, '/');
   } else {
     session_id = '';
   }
 
-  let endpoint = wsEndpoint + session_id;
-  wsConnection = new WebSocket(endpoint);
+  wsEndpointSession = wsEndpoint + session_id;
+
+  wsConnection = new WebSocket(wsEndpointSession);
   wsConnection.onopen = () => {
     console.log('connected');
     wsConnected.value = true;
@@ -56,7 +59,7 @@ onMounted(() => {
     wsConnected.value = false;
     // try to reconnect here
     reconnectInterval = setInterval(() => {
-      wsConnection = new WebSocket(wsEndpoint);
+      wsConnection = new WebSocket(wsEndpointSession);
       wsConnection.onopen = () => {
         console.log('reconnected');
         wsConnected.value = true;
